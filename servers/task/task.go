@@ -5,46 +5,51 @@ import (
 
 	"github.com/cocktail828/gdk/v1/logger"
 	"github.com/cocktail828/gdk/v1/message/messagepb"
+	"github.com/cocktail828/gdk/v1/responsibe_chain"
 	"github.com/cocktail828/gdk/v1/zplugin"
 )
 
 type taskOpt func(*Task)
 
 func WithConf(conf interface{}) taskOpt {
-	return func(in *Task) {
-		in.params["conf"] = conf
+	return func(t *Task) {
+		t.params["conf"] = conf
 	}
 }
 
 func WithChain(chain []zplugin.ZPlugin) taskOpt {
-	return func(in *Task) {
-		in.chain = chain
+	return func(t *Task) {
+		t.chain = chain
 	}
 }
 
 func WithSkip(skipPlugins map[string]bool) taskOpt {
-	return func(in *Task) {
-		in.skipPlugins = skipPlugins
+	return func(t *Task) {
+		chain := []zplugin.ZPlugin{}
+		for _, p := range t.chain {
+			if skipPlugins[p.Name()] {
+				chain = append(chain, p)
+			}
+		}
+		t.chain = chain
 	}
 }
 
 func WithBuf(buf bytes.Buffer) taskOpt {
-	return func(in *Task) {
-		in.buf = buf
+	return func(t *Task) {
+		t.buf = buf
 	}
 }
 
 type Task struct {
-	params      map[string]interface{}
-	chain       []zplugin.ZPlugin
-	skipPlugins map[string]bool
-	buf         bytes.Buffer
+	logger logger.Logger
+	params map[string]interface{}
+	chain  []zplugin.ZPlugin
+	buf    bytes.Buffer
 }
 
 func NewTask(opts ...taskOpt) (*Task, error) {
-	taskInst := &Task{
-		skipPlugins: make(map[string]bool),
-	}
+	taskInst := &Task{logger: logger.Default()}
 	for _, opt := range opts {
 		opt(taskInst)
 	}
@@ -52,16 +57,11 @@ func NewTask(opts ...taskOpt) (*Task, error) {
 	return taskInst, nil
 }
 
-func (t *Task) run(mess *messagepb.Message, span *utils.Span) (int, error) {
+func (t *Task) run(mess *messagepb.Message) (int, error) {
 	for _, v := range t.chain {
-		if t.skipPlugins[v.Name()] {
-			continue
-		}
-
-		logger.Default().Debugw("task.run", "op", "Prepare", "filter", v.Name())
-		code, err := v.Prepare(mess, t)
+		logger.Debugln("task.run", "op", "Prepare", "filter", v.Name())
+		code, err := v.Preproc(mess, t)
 		if err != nil {
-			t.tools.Log.Errorw("task.run", "op", "Prepare", "err", err, "sid", t.Sid)
 			return code, err
 		}
 
@@ -71,13 +71,9 @@ func (t *Task) run(mess *messagepb.Message, span *utils.Span) (int, error) {
 	}
 
 	for _, v := range t.chain {
-		if t.skipPlugins[v.Name()] {
-			continue
-		}
-		logger.Default().Debugw("task.run", "op", "Do", "filter", v.Name())
-		code, err := v.Do(mess, t)
+		logger.Debugln("task.run", "op", "Do", "filter", v.Name())
+		code, err := v.Process(mess, t)
 		if err != nil {
-			t.tools.Log.Errorw("task.run", "op", "Do", "err", err, "sid", t.Sid)
 			return code, err
 		}
 
@@ -87,69 +83,36 @@ func (t *Task) run(mess *messagepb.Message, span *utils.Span) (int, error) {
 	}
 
 	for _, v := range t.chain {
-		if t.skipPlugins[v.Name()] {
-			continue
-		}
-
-		logger.Default().Debugw("task.run", "op", "WindingUp", "filter", v.Name())
-		code, err := v.WindingUp(mess, t)
+		logger.Debugln("task.run", "op", "WindingUp", "filter", v.Name())
+		code, err := v.Postproc(mess, t)
 		if err != nil {
-			t.tools.Log.Errorw("task.run", "op", "WindingUp", "err", err, "sid", t.Sid)
 			return code, err
 		}
 
 		if code == zplugin.STOP {
 			return code, err
 		}
-	}
-
-	for k, v := range mess.Params.Extra {
-		span.WithTag(k, v)
 	}
 
 	return 0, nil
 }
 
 func (t *Task) Run(mess *messagepb.Message) error {
-	t.Sid = mess.Params.Sid
-	str := ""
-	chain := make([]zplugin.ZPlugin, 0)
-
-	logger.Default().Debugw("about to GetFiltersChains")
-	chainPreset, err := GetChain("")
-	if err == nil {
-		return err
-	}
-
-	for _, v := range chainPreset {
+	zplugin.Plugins(func(res responsibe_chain.Handler) {
+		v := res.(zplugin.ZPlugin)
 		if v.Interest(mess) {
-			chain = append(chain, v)
-			str += v.Name() + ", "
-			logger.Default().Debugw("task.Run", "str", str)
+			t.chain = append(t.chain, v)
 		}
-	}
+	})
 
-	t.span.WithTag("filters: ", str)
-	t.chain = chain
-	code, err = t.run(mess, t.span)
-	if err != nil {
-		return err
-	}
-	return nil
+	_, err := t.run(mess)
+	return err
 }
 
-func (t *Task) Chain() []zplugin.ZPlugin{
-	return t.chain
-}
-
-func (t *Task) Skip(name string) {
-	t.skipPlugins[name] = true
+func (t *Task) Logger() logger.Logger {
+	return t.logger
 }
 
 func (t *Task) SendBack(d []byte) {
 	t.buf.Write(d)
-}
-
-func (t *Task) GetBackData() []byte {
-	return t.buf.Bytes()
 }

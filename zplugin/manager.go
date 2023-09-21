@@ -45,3 +45,7 @@ func InitPluginManager(confStr string, names ...string) {
 		logger.Default().Println(p.Name(), "init success")
 	})
 }
+
+func Plugins(f func(res responsibe_chain.Handler)) {
+	_pluginManager.Traverse(f)
+}
