@@ -1,118 +1,110 @@
-package proxy
+package task
 
 import (
 	"bytes"
+	"fmt"
+	"strings"
 
-	"github.com/cocktail828/gdk/v1/logger"
-	"github.com/cocktail828/gdk/v1/message/messagepb"
-	"github.com/cocktail828/gdk/v1/responsibe_chain"
+	"github.com/cocktail828/gdk/v1/message"
 	"github.com/cocktail828/gdk/v1/zplugin"
+	"github.com/cocktail828/go-tools/z/chain"
+	"github.com/cocktail828/go-tools/z/errcode"
+	"github.com/cocktail828/go-tools/z/reflectx"
+	"golang.org/x/exp/slog"
 )
 
-type taskOpt func(*Task)
+type Option func(*Task)
 
-func WithConf(conf interface{}) taskOpt {
+func WithSrvName(srvname string) Option {
 	return func(t *Task) {
-		t.params["conf"] = conf
+		t.srvName = srvname
 	}
 }
 
-func WithChain(chain []zplugin.ZPlugin) taskOpt {
+func WithLogger(logger *slog.Logger) Option {
 	return func(t *Task) {
-		t.chain = chain
-	}
-}
-
-func WithSkip(skipPlugins map[string]bool) taskOpt {
-	return func(t *Task) {
-		chain := []zplugin.ZPlugin{}
-		for _, p := range t.chain {
-			if skipPlugins[p.Name()] {
-				chain = append(chain, p)
-			}
-		}
-		t.chain = chain
-	}
-}
-
-func WithBuf(buf bytes.Buffer) taskOpt {
-	return func(t *Task) {
-		t.buf = buf
+		t.logger = logger
 	}
 }
 
 type Task struct {
-	logger logger.Logger
-	params map[string]interface{}
-	chain  []zplugin.ZPlugin
-	buf    bytes.Buffer
+	srvName   string
+	logger    *slog.Logger
+	subLogger *slog.Logger
+	chain     []zplugin.ZPlugin
+	buffer    *bytes.Buffer
 }
 
-func NewTask(opts ...taskOpt) (*Task, error) {
-	taskInst := &Task{logger: logger.Default()}
+func New(opts ...Option) (*Task, error) {
+	taskInst := &Task{
+		buffer: get(),
+	}
+
 	for _, opt := range opts {
 		opt(taskInst)
 	}
-
 	return taskInst, nil
 }
 
-func (t *Task) run(mess *messagepb.Message) (int, error) {
-	for _, v := range t.chain {
-		logger.Debugln("task.run", "op", "Prepare", "filter", v.Name())
-		code, err := v.Preproc(mess, t)
-		if err != nil {
-			return code, err
-		}
-
-		if code == zplugin.STOP {
-			return code, err
-		}
-	}
-
-	for _, v := range t.chain {
-		logger.Debugln("task.run", "op", "Do", "filter", v.Name())
-		code, err := v.Process(mess, t)
-		if err != nil {
-			return code, err
-		}
-
-		if code == zplugin.STOP {
-			return code, err
-		}
-	}
-
-	for _, v := range t.chain {
-		logger.Debugln("task.run", "op", "WindingUp", "filter", v.Name())
-		code, err := v.Postproc(mess, t)
-		if err != nil {
-			return code, err
-		}
-
-		if code == zplugin.STOP {
-			return code, err
-		}
-	}
-
-	return 0, nil
+func (t *Task) Close() error {
+	t.buffer.Reset()
+	put(t.buffer)
+	return nil
 }
 
-func (t *Task) Run(mess *messagepb.Message) error {
-	zplugin.Plugins(func(res responsibe_chain.Handler) {
-		v := res.(zplugin.ZPlugin)
-		if v.Interest(mess) {
-			t.chain = append(t.chain, v)
-		}
-	})
-
-	_, err := t.run(mess)
-	return err
-}
-
-func (t *Task) Logger() logger.Logger {
+func (t *Task) Logger() *slog.Logger {
+	if t.subLogger != nil {
+		return t.subLogger
+	}
 	return t.logger
 }
 
 func (t *Task) SendBack(d []byte) {
-	t.buf.Write(d)
+	t.buffer.Write(d)
+}
+
+func (t *Task) Run(msg *message.Message) *errcode.Error {
+	plugins := []string{}
+	zplugin.Traverse(func(res chain.Handler) {
+		v := res.(zplugin.ZPlugin)
+		if v.Interest(msg) {
+			t.chain = append(t.chain, v)
+			plugins = append(plugins, v.Name())
+		}
+	})
+	t.logger = t.logger.WithGroup(t.srvName).With("sid", msg.Sid)
+
+	t.logger.Info(fmt.Sprintf("task start with plugins: %v", strings.Join(plugins, ",")))
+	err := t.run(msg)
+	return err
+}
+
+func (t *Task) run(msg *message.Message) *errcode.Error {
+	for _, v := range t.chain {
+		t.logger.Debug("plugin.Preproc try process request", "plugin", v.Name())
+		t.subLogger = t.logger.With("plugin", v.Name(), "fn", "Preproc")
+		code, err := v.Preproc(msg, t)
+		if code == zplugin.STOP || !reflectx.IsNil(err) {
+			return err
+		}
+	}
+
+	for _, v := range t.chain {
+		t.logger.Debug("plugin.Process try process request", "plugin", v.Name())
+		t.subLogger = t.logger.With("plugin", v.Name(), "fn", "Process")
+		code, err := v.Process(msg, t)
+		if code == zplugin.STOP || !reflectx.IsNil(err) {
+			return err
+		}
+	}
+
+	for _, v := range t.chain {
+		t.logger.Debug("plugin.Postproc try process request", "plugin", v.Name())
+		t.subLogger = t.logger.With("plugin", v.Name(), "fn", "Postproc")
+		code, err := v.Postproc(msg, t)
+		if code == zplugin.STOP || !reflectx.IsNil(err) {
+			return err
+		}
+	}
+	return nil
 }

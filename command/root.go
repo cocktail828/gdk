@@ -1,7 +1,8 @@
 package command
 
 import (
-	"github.com/cocktail828/gdk/v1/logger"
+	"log"
+
 	"github.com/spf13/cobra"
 )
 
@@ -12,6 +13,6 @@ var RootCmd = &cobra.Command{
 
 func Execute() {
 	if err := RootCmd.Execute(); err != nil {
-		logger.Default().Panicln(err)
+		log.Fatal(err)
 	}
 }

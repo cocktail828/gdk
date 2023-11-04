@@ -1,27 +1,26 @@
 package zplugin
 
 import (
+	"container/list"
+	"log"
 	"plugin"
 
-	"github.com/cocktail828/gdk/v1/logger"
-	"github.com/cocktail828/gdk/v1/must"
-	"github.com/cocktail828/gdk/v1/responsibe_chain"
+	"github.com/cocktail828/go-tools/z"
+	"github.com/cocktail828/go-tools/z/chain"
 )
 
-var _pluginManager *responsibe_chain.ResponsibeChain
-
-func init() {
-	_pluginManager = responsibe_chain.New()
-}
+var (
+	pluginManager *chain.Chain = chain.New()
+)
 
 func InitPluginManager(confStr string, names ...string) {
-	logger.Default().Println("pre init plugins: ", names)
+	log.Println("pre init plugins: ", names)
 	if len(names) == 0 {
-		logger.Default().Fatal("empty plugins")
+		log.Fatal("empty plugins")
 	}
 
 	for _, v := range names {
-		logger.Default().Println("load plugin: ", v)
+		log.Println("load plugin: ", v)
 		if v == "" {
 			continue
 		}
@@ -35,17 +34,31 @@ func InitPluginManager(confStr string, names ...string) {
 		if err != nil {
 			panic(err)
 		}
-
-		_pluginManager.Register(f.(func() ZPlugin)())
+		pluginManager.Add(f.(func() ZPlugin)())
 	}
 
-	_pluginManager.Traverse(func(h responsibe_chain.Handler) {
+	pluginManager.Traverse(nil, func(h chain.Handler) bool {
 		p := h.(ZPlugin)
-		must.Must(p.Init(confStr))
-		logger.Default().Println(p.Name(), "init success")
+		z.Must(p.Init(confStr))
+		log.Println(p.Name(), "init success")
+		return true
 	})
 }
 
-func Plugins(f func(res responsibe_chain.Handler)) {
-	_pluginManager.Traverse(f)
+func Traverse(f func(res chain.Handler)) *list.Element {
+	return pluginManager.Traverse(nil, func(h chain.Handler) bool {
+		f(h)
+		return true
+	})
+}
+
+func Reverse(f func(res chain.Handler)) *list.Element {
+	return pluginManager.Reverse(nil, func(h chain.Handler) bool {
+		f(h)
+		return true
+	})
+}
+
+func Handlers() []chain.Handler {
+	return pluginManager.Handlers()
 }
