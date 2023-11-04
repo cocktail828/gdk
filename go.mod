@@ -4,7 +4,6 @@ go 1.18
 
 require (
 	github.com/cocktail828/go-tools v0.1.4-0.20231104142503-b5ed8e9f37c9
-	github.com/golang/protobuf v1.5.3
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.7.0
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d

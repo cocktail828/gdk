@@ -4,12 +4,11 @@ import (
 	"github.com/cocktail828/gdk/v1/message/messagepb"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type Message struct {
 	*messagepb.Message
-	Parsed interface{}
+	private interface{}
 }
 
 func New(body []byte) (*Message, error) {
@@ -20,14 +19,22 @@ func New(body []byte) (*Message, error) {
 	return &Message{Message: &rawmsg}, nil
 }
 
-func (m *Message) Unmarshal(f func(*anypb.Any) (interface{}, error)) error {
+func (m *Message) Private() interface{} {
+	return m.private
+}
+
+func (m *Message) Parse(f func([]byte) (interface{}, error)) error {
 	if f == nil {
 		return errors.Errorf("invalid unmarshaller for sub:%v", m.Sub)
 	}
 
-	v, err := f(m.GetReserved())
+	if m.private != nil {
+		return nil
+	}
+
+	v, err := f(m.GetData())
 	if err == nil {
-		m.Parsed = v
+		m.private = v
 	}
 	return err
 }

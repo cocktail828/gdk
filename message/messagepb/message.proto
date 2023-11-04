@@ -1,26 +1,24 @@
 syntax = "proto3";
 
-import "google/protobuf/any.proto";
 package message;
 option go_package="./;messagepb";
 
-message Message {
-    enum MsgType {
-        Upload = 0; 
-        Download = 1;
-        Delete = 2; 
-        Update = 3;
-        Query = 4;
-        Search = 5;
-    }
+enum MsgType {
+    Upload   = 0; 
+    Download = 1;
+    Delete   = 2; 
+    Update   = 3;
+    Query    = 4;
+    Search   = 5;
+}
 
-    MsgType type = 1; // 消息类型
-    string upStream = 2; // 上游ip
-    string sid = 3 ; // sid
-    string table = 4;
-    string sub=5;
-    repeated string tags =6;
-    bytes data = 7;
+message Message {
+    MsgType type            = 1; // 消息类型
+    string upStream         = 2; // 上游ip
+    string sid              = 3; // sid
+    string table            = 4;
+    string sub              = 5;
+    bytes data              = 6;
+    repeated string tags    = 7;
     map<string, bytes> meta = 8;
-    google.protobuf.Any reserved = 9;
 }

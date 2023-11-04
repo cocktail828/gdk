@@ -16,12 +16,12 @@ const (
 const New = "New" // plugin entry
 
 type ZPlugin interface {
-	Init(conf string) *errcode.Error
 	Name() string
+	Interest(msg *message.Message) bool
+	Init(cfgs map[string][]byte) *errcode.Error
 	Preproc(msg *message.Message, tools Tools) (State, *errcode.Error)
 	Process(msg *message.Message, tools Tools) (State, *errcode.Error)
 	Postproc(msg *message.Message, tools Tools) (State, *errcode.Error)
-	Interest(msg *message.Message) bool
 }
 
 type Tools interface {

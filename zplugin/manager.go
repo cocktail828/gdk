@@ -4,6 +4,8 @@ import (
 	"container/list"
 	"log"
 	"plugin"
+	"strings"
+	"sync/atomic"
 
 	"github.com/cocktail828/go-tools/z"
 	"github.com/cocktail828/go-tools/z/chain"
@@ -13,52 +15,78 @@ var (
 	pluginManager *chain.Chain = chain.New()
 )
 
-func InitPluginManager(confStr string, names ...string) {
-	log.Println("pre init plugins: ", names)
-	if len(names) == 0 {
-		log.Fatal("empty plugins")
-	}
+func InitPlugins(cfgs map[string][]byte) {
+	pluginManager.Traverse(nil, func(h chain.Handler) bool {
+		w := h.(*wrapperedHandler)
+		if w.inited.CompareAndSwap(false, true) {
+			z.Must(w.Init(cfgs))
+			log.Println("init buildin plugins success", w.Name())
+		}
+		return true
+	})
+}
 
-	for _, v := range names {
-		log.Println("load plugin: ", v)
-		if v == "" {
+type wrapperedHandler struct {
+	ZPlugin
+	inited   atomic.Bool
+	isNative bool
+}
+
+func RegisterBuildinPlugins(plugins ...ZPlugin) {
+	log.Println("try init buildin plugins", func() string {
+		tmp := []string{}
+		for _, s := range plugins {
+			tmp = append(tmp, s.Name())
+		}
+		return strings.Join(tmp, ",")
+	}())
+
+	for _, p := range plugins {
+		if p == nil || pluginManager.Get(p.Name()) != nil {
+			continue
+		}
+		log.Println("load buildin plugin", p.Name())
+		pluginManager.Add(&wrapperedHandler{
+			ZPlugin:  p,
+			isNative: false,
+		})
+	}
+}
+
+func RegisterNativePlugins(cfgs map[string][]byte, names ...string) {
+	log.Println("try init native plugins", strings.Join(names, ","))
+	for _, n := range names {
+		if n == "" || pluginManager.Get(n) != nil {
 			continue
 		}
 
-		p, err := plugin.Open(v)
+		log.Println("load native plugin", n)
+		p, err := plugin.Open(n)
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 
 		f, err := p.Lookup(New)
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
-		pluginManager.Add(f.(func() ZPlugin)())
+		pluginManager.Add(&wrapperedHandler{
+			ZPlugin:  f.(func() ZPlugin)(),
+			isNative: false,
+		})
 	}
-
-	pluginManager.Traverse(nil, func(h chain.Handler) bool {
-		p := h.(ZPlugin)
-		z.Must(p.Init(confStr))
-		log.Println(p.Name(), "init success")
-		return true
-	})
 }
 
-func Traverse(f func(res chain.Handler)) *list.Element {
+func Traverse(f func(p ZPlugin)) *list.Element {
 	return pluginManager.Traverse(nil, func(h chain.Handler) bool {
-		f(h)
+		f(h.(*wrapperedHandler).ZPlugin)
 		return true
 	})
 }
 
-func Reverse(f func(res chain.Handler)) *list.Element {
+func Reverse(f func(p ZPlugin)) *list.Element {
 	return pluginManager.Reverse(nil, func(h chain.Handler) bool {
-		f(h)
+		f(h.(*wrapperedHandler).ZPlugin)
 		return true
 	})
-}
-
-func Handlers() []chain.Handler {
-	return pluginManager.Handlers()
 }

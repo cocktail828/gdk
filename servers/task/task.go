@@ -7,7 +7,6 @@ import (
 
 	"github.com/cocktail828/gdk/v1/message"
 	"github.com/cocktail828/gdk/v1/zplugin"
-	"github.com/cocktail828/go-tools/z/chain"
 	"github.com/cocktail828/go-tools/z/errcode"
 	"github.com/cocktail828/go-tools/z/reflectx"
 	"golang.org/x/exp/slog"
@@ -65,11 +64,10 @@ func (t *Task) SendBack(d []byte) {
 
 func (t *Task) Run(msg *message.Message) *errcode.Error {
 	plugins := []string{}
-	zplugin.Traverse(func(res chain.Handler) {
-		v := res.(zplugin.ZPlugin)
-		if v.Interest(msg) {
-			t.chain = append(t.chain, v)
-			plugins = append(plugins, v.Name())
+	zplugin.Traverse(func(p zplugin.ZPlugin) {
+		if p.Interest(msg) {
+			t.chain = append(t.chain, p)
+			plugins = append(plugins, p.Name())
 		}
 	})
 	t.logger = t.logger.WithGroup(t.srvName).With("sid", msg.Sid)
