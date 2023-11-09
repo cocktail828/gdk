@@ -3,7 +3,7 @@ export GOPROXY=https://goproxy.cn
 
 gopath=$(shell go env GOPATH)
 default:
-	rm -rf messagepb && protoc -I. --go_out=":." message.proto
+	rm -rf messagepb && protoc -I. --go-grpc_out=:. message.proto
 
 env:
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28

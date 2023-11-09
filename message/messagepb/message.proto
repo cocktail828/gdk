@@ -22,3 +22,7 @@ message Message {
     repeated string tags    = 7;
     map<string, bytes> meta = 8;
 }
+
+service GDK {
+    rpc Call(Message) returns (Message);
+}
