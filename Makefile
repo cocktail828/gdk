@@ -10,7 +10,11 @@ GitCommitLog := $(shell git log --pretty=oneline -n 1)
 BuildTime := $(shell date +'%Y.%m.%d.%H%M%S')
 GoVersion := $(shell go version)
 
-plugins := $(wildcard zplugin/native/*)
+ifeq ($(MAKECMDGOALS),)
+	plugins := $(wildcard zplugin/native/*)
+else
+	plugins := $(MAKECMDGOALS)
+endif
 
 .PHONY: all clean $(plugins)
 
