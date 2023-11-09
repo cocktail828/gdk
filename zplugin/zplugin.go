@@ -1,8 +1,8 @@
 package zplugin
 
 import (
+	"github.com/cocktail828/gdk/v1/errcode"
 	"github.com/cocktail828/gdk/v1/message"
-	"github.com/cocktail828/go-tools/z/errcode"
 	"golang.org/x/exp/slog"
 )
 
@@ -14,6 +14,7 @@ const (
 )
 
 const New = "New" // plugin entry
+type Entry = func() ZPlugin
 
 type ZPlugin interface {
 	Name() string

@@ -7,8 +7,9 @@ import (
 )
 
 var RootCmd = &cobra.Command{
-	Use:   "gdk",
-	Short: "general development kit",
+	Use:               "gdk",
+	Short:             "GDK: general development kit",
+	CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
 }
 
 func Execute() {

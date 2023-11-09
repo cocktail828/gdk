@@ -2,12 +2,11 @@ package task
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 
+	"github.com/cocktail828/gdk/v1/errcode"
 	"github.com/cocktail828/gdk/v1/message"
 	"github.com/cocktail828/gdk/v1/zplugin"
-	"github.com/cocktail828/go-tools/z/errcode"
 	"github.com/cocktail828/go-tools/z/reflectx"
 	"golang.org/x/exp/slog"
 )
@@ -72,7 +71,7 @@ func (t *Task) Run(msg *message.Message) *errcode.Error {
 	})
 	t.logger = t.logger.WithGroup(t.srvName).With("sid", msg.Sid)
 
-	t.logger.Info(fmt.Sprintf("task start with plugins: %v", strings.Join(plugins, ",")))
+	t.logger.Info("task start with plugins", "plugins", strings.Join(plugins, ","))
 	err := t.run(msg)
 	return err
 }
