@@ -1,9 +1,10 @@
-package server
+package logger
 
 import (
 	"log"
 	"os"
 
+	"github.com/cocktail828/go-tools/z/stringx"
 	"golang.org/x/exp/slog"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -26,7 +27,11 @@ var (
 
 func init() {
 	log.SetPrefix("[GDK] ")
-	if mode := os.Getenv(EnvGdkMode); mode != "" {
+	mode := os.Getenv(EnvGdkMode)
+	if !stringx.Contains([]string{DebugMode, ReleaseMode, TestMode, ""}, mode) {
+		log.Fatal("env 'GDK_MODE' should be oneof debug|release|test")
+	}
+	if mode != "" {
 		modeName = mode
 	}
 	log.Println("gdk work mode:", modeName)

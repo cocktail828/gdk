@@ -8,6 +8,7 @@ import (
 	"github.com/cocktail828/gdk/v1/message"
 	"github.com/cocktail828/gdk/v1/zplugin"
 	"github.com/cocktail828/go-tools/z/reflectx"
+	"github.com/pkg/errors"
 	"golang.org/x/exp/slog"
 )
 
@@ -25,23 +26,39 @@ func WithLogger(logger *slog.Logger) Option {
 	}
 }
 
+func WithPlugins(ps []zplugin.ZPlugin) Option {
+	return func(t *Task) {
+		t.plugins = ps
+	}
+}
+
 type Task struct {
-	srvName   string
-	logger    *slog.Logger
+	// inherit variables
+	srvName string
+	logger  *slog.Logger
+	plugins []zplugin.ZPlugin
+	// local variables
 	subLogger *slog.Logger
-	chain     []zplugin.ZPlugin
 	buffer    *bytes.Buffer
 }
 
 func New(opts ...Option) (*Task, error) {
-	taskInst := &Task{
+	inst := &Task{
 		buffer: get(),
 	}
-
 	for _, opt := range opts {
-		opt(taskInst)
+		opt(inst)
 	}
-	return taskInst, nil
+	if inst.logger == nil {
+		return nil, errors.Errorf("invalid task for missing logger")
+	}
+	if inst.srvName == "" {
+		return nil, errors.Errorf("invalid task for missing srvName")
+	}
+	if len(inst.plugins) == 0 {
+		return nil, errors.Errorf("invalid task for empty plugins")
+	}
+	return inst, nil
 }
 
 func (t *Task) Close() error {
@@ -63,22 +80,17 @@ func (t *Task) SendBack(d []byte) {
 
 func (t *Task) Run(msg *message.Message) *errcode.Error {
 	plugins := []string{}
-	zplugin.Traverse(func(p zplugin.ZPlugin) {
-		if p.Interest(msg) {
-			t.chain = append(t.chain, p)
-			plugins = append(plugins, p.Name())
-		}
-	})
+	for _, p := range t.plugins {
+		plugins = append(plugins, p.Name())
+	}
 	t.logger = t.logger.WithGroup(t.srvName).With("sid", msg.Sid)
-
-	t.logger.Info("task start with plugins", "plugins", strings.Join(plugins, ","))
-	err := t.run(msg)
-	return err
+	t.logger.Info("task.Run", "op", "task start with plugins", "plugins", strings.Join(plugins, ","))
+	return t.run(msg)
 }
 
 func (t *Task) run(msg *message.Message) *errcode.Error {
-	for _, v := range t.chain {
-		t.logger.Debug("plugin.Preproc try process request", "plugin", v.Name())
+	for _, v := range t.plugins {
+		t.logger.Debug("plugin.Preproc", "plugin", v.Name())
 		t.subLogger = t.logger.With("plugin", v.Name(), "fn", "Preproc")
 		code, err := v.Preproc(msg, t)
 		if code == zplugin.STOP || !reflectx.IsNil(err) {
@@ -86,8 +98,8 @@ func (t *Task) run(msg *message.Message) *errcode.Error {
 		}
 	}
 
-	for _, v := range t.chain {
-		t.logger.Debug("plugin.Process try process request", "plugin", v.Name())
+	for _, v := range t.plugins {
+		t.logger.Debug("plugin.Process", "plugin", v.Name())
 		t.subLogger = t.logger.With("plugin", v.Name(), "fn", "Process")
 		code, err := v.Process(msg, t)
 		if code == zplugin.STOP || !reflectx.IsNil(err) {
@@ -95,8 +107,8 @@ func (t *Task) run(msg *message.Message) *errcode.Error {
 		}
 	}
 
-	for _, v := range t.chain {
-		t.logger.Debug("plugin.Postproc try process request", "plugin", v.Name())
+	for _, v := range t.plugins {
+		t.logger.Debug("plugin.Postproc", "plugin", v.Name())
 		t.subLogger = t.logger.With("plugin", v.Name(), "fn", "Postproc")
 		code, err := v.Postproc(msg, t)
 		if code == zplugin.STOP || !reflectx.IsNil(err) {

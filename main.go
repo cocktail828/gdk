@@ -1,23 +1,25 @@
 package main
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/cocktail828/gdk/v1/command"
 )
 
 var (
-	GitTag       string
-	BuildTime    string
-	GitCommitLog string
-	GoVersion    string
+	GitRemote string
+	GitTag    string
+	BuildTime string
+	GitCommit string
+	GoVersion string
 )
 
 func init() {
-	fmt.Println("-> GitTag:", GitTag)
-	fmt.Println("-> GitCommitLog:", GitCommitLog)
-	fmt.Println("-> BuildTime:", BuildTime)
-	fmt.Println("-> GoVersion:", GoVersion)
+	log.Println("-> GitRemote:", GitRemote)
+	log.Println("-> GitTag:", GitTag)
+	log.Println("-> GitCommit:", GitCommit)
+	log.Println("-> BuildTime:", BuildTime)
+	log.Println("-> GoVersion:", GoVersion)
 }
 
 func main() {

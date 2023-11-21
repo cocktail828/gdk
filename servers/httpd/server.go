@@ -3,7 +3,7 @@ package httpd
 import (
 	"net/http"
 
-	server "github.com/cocktail828/gdk/v1/servers"
+	"github.com/cocktail828/gdk/v1/logger"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/exp/slog"
 )
@@ -20,7 +20,7 @@ type Server struct {
 
 func (srv *Server) Init(args ...string) error {
 	gin.SetMode(gin.ReleaseMode)
-	srv.logger = server.NewLogger("gdk-http.log")
+	srv.logger = logger.NewLogger("gdk-http.log")
 	srv.Engine = gin.New()
 
 	srv.Use(gin.Recovery())

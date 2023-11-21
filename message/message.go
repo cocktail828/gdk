@@ -1,14 +1,21 @@
 package message
 
 import (
-	"github.com/cocktail828/gdk/v1/message/messagepb"
-	"github.com/pkg/errors"
+	"sync"
+
+	"github.com/cocktail828/go-tools/messagepb"
 	"google.golang.org/protobuf/proto"
 )
 
+type Parsed struct {
+	Data interface{}
+	Meta sync.Map
+}
+
 type Message struct {
 	*messagepb.Message
-	private interface{}
+	parsed   *Parsed
+	reserved sync.Map
 }
 
 func New(body []byte) (*Message, error) {
@@ -16,25 +23,29 @@ func New(body []byte) (*Message, error) {
 	if err := proto.Unmarshal(body, &rawmsg); err != nil {
 		return nil, err
 	}
-	return &Message{Message: &rawmsg}, nil
+	m := &Message{Message: &rawmsg}
+	if f, ok := parserRegistry[rawmsg.GetSub()]; ok {
+		p, err := f(&rawmsg)
+		if err != nil {
+			return nil, err
+		}
+		m.parsed = p
+	}
+	return m, nil
 }
 
-func (m *Message) Private() interface{} {
-	return m.private
+func (m *Message) Store(key string, val interface{}) {
+	m.reserved.Store(key, val)
 }
 
-func (m *Message) Parse(f func([]byte) (interface{}, error)) error {
-	if f == nil {
-		return errors.Errorf("invalid unmarshaller for sub:%v", m.Sub)
-	}
+func (m *Message) Delete(key string) {
+	m.reserved.Delete(key)
+}
 
-	if m.private != nil {
-		return nil
-	}
+func (m *Message) Load(key string) (interface{}, bool) {
+	return m.reserved.Load(key)
+}
 
-	v, err := f(m.GetData())
-	if err == nil {
-		m.private = v
-	}
-	return err
+func (m *Message) Parsed() *Parsed {
+	return m.parsed
 }
