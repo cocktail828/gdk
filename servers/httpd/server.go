@@ -3,9 +3,8 @@ package httpd
 import (
 	"net/http"
 
-	"github.com/cocktail828/gdk/v1/logger"
+	"github.com/cocktail828/go-kits/pkg/logger"
 	"github.com/gin-gonic/gin"
-	"golang.org/x/exp/slog"
 )
 
 func init() {
@@ -15,12 +14,12 @@ func init() {
 type Server struct {
 	*gin.Engine
 	state  state
-	logger *slog.Logger
+	logger logger.Logger
 }
 
-func (srv *Server) Init(args ...string) error {
+func (srv *Server) Init(logger logger.Logger, args ...string) error {
 	gin.SetMode(gin.ReleaseMode)
-	srv.logger = logger.NewLogger("gdk-http.log")
+	srv.logger = logger
 	srv.Engine = gin.New()
 
 	srv.Use(gin.Recovery())

@@ -1,37 +1,39 @@
 package zplugin
 
 import (
+	"log"
+	"sync"
+
 	"github.com/cocktail828/gdk/v1/errcode"
-	"github.com/cocktail828/gdk/v1/message"
-	"github.com/cocktail828/go-tools/messagepb"
-	"golang.org/x/exp/slog"
+	"github.com/cocktail828/gdk/v1/zplugin/consts"
 )
 
-type State int
-
-const (
-	STOP State = iota
-	CONT
+var (
+	repository sync.Map
 )
 
-const New = "New" // plugin entry
-type Entry = func() ZPlugin
+func Register(p ZPlugin) {
+	if p != nil {
+		log.Println("register plugin", p.Name())
+		repository.Store(p.Name(), p)
+	}
+}
+
+func Traverse(f func(p ZPlugin) *errcode.Error, handlers ...string) {
+	for _, handler := range handlers {
+		if val, ok := repository.Load(handler); ok {
+			if err := f(val.(ZPlugin)); err != nil {
+				return
+			}
+		}
+	}
+}
 
 type ZPlugin interface {
 	Name() string
-	Interest(msg *message.Message) bool
-	Init(cfgs map[string][]byte) *errcode.Error
-	Preproc(msg *message.Message, tools Tools) (State, *errcode.Error)
-	Process(msg *message.Message, tools Tools) (State, *errcode.Error)
-	Postproc(msg *message.Message, tools Tools) (State, *errcode.Error)
-}
-
-type MessageParser interface {
-	Parser(msg *messagepb.Message) (*message.Parsed, error)
-	Sub() string
-}
-
-type Tools interface {
-	Logger() *slog.Logger
-	SendBack([]byte)
+	Init(cfg []byte) *errcode.Error
+	Interest(ctx *Context) bool
+	Prepare(ctx *Context) (consts.State, *errcode.Error)
+	Process(ctx *Context) (consts.State, *errcode.Error)
+	Cleanup(ctx *Context) (consts.State, *errcode.Error)
 }
