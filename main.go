@@ -1,9 +1,8 @@
 package main
 
 import (
-	"log"
-
-	"github.com/cocktail828/gdk/v1/command"
+	"github.com/cocktail828/gdk/v1/cmd"
+	"github.com/cocktail828/go-tools/log"
 )
 
 var (
@@ -23,5 +22,5 @@ func init() {
 }
 
 func main() {
-	command.Execute()
+	cmd.Execute()
 }

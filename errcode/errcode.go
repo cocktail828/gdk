@@ -12,10 +12,6 @@ type Error struct {
 	cause error
 }
 
-func New(code int, desc string) *Error {
-	return &Error{code: code, desc: desc}
-}
-
 func (e *Error) WithError(err error) *Error {
 	if e.cause == nil {
 		e.cause = err
@@ -45,9 +41,9 @@ func (e *Error) WithMessagef(format string, args ...interface{}) *Error {
 
 func (e *Error) Error() string {
 	if e.cause == nil {
-		return fmt.Sprintf("[Code:%v, Desc:'%v']", e.code, e.desc)
+		return fmt.Sprintf("Code:%v, Desc:%v", e.code, e.desc)
 	}
-	return fmt.Sprintf("[Code:%v, Msg:'%v']", e.code, e.desc) + ": " + e.cause.Error()
+	return fmt.Sprintf("Code:%v, Desc:%v, Cause: %v", e.code, e.desc, e.cause.Error())
 }
 
 func (e *Error) Cause() error {

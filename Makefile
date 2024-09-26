@@ -3,37 +3,31 @@ SHELL := /bin/bash
 export GOPROXY=https://goproxy.cn,direct
 export GO111MODULE=on
 export GOSUMDB=off
-export BIN=$(shell pwd)/build
+export OUTPUT_DIR=bin
 
-GitRemote := $(shell git remote -v | xargs)
-GitTag := $(shell git tag --sort=version:refname | tail -n 1)
-GitCommit := $(shell git log --pretty=oneline -n 1)
-BuildTime := $(shell date +'%Y.%m.%d.%H%M%S')
-GoVersion := $(shell go version)
+# default APPVER or from $VAR or command-line
+APPVER ?= 0.0.0
 
-ifeq ($(MAKECMDGOALS),)
-	plugins := $(wildcard zplugin/native/*)
-else
-	plugins := $(MAKECMDGOALS)
-endif
+ci: gdk verbose
+	
 
-.PHONY: all clean $(plugins)
+%:
+	go build -buildmode=plugin -o $(OUTPUT_DIR)/$@.so filters/plugins/$@/*.go
 
-all: clean gdk $(plugins)
-
-$(plugins):
-	$(MAKE) -C $@
+vendor:
+	go mod tidy && go mod vendor
 
 gdk:
 	go generate
-	go build -v -ldflags "\
-		-X 'main.GitRemote=${GitRemote}' \
-		-X 'main.GitTag=${GitTag}' \
-		-X 'main.GitCommit=${GitCommit}' \
-		-X 'main.BuildTime=${BuildTime}' \
-		-X 'main.GoVersion=${GoVersion}' " \
-		-o $(BIN)/$@ main.go
+	go build -v -ldflags " \
+		-X 'main.GitRemote=$(shell git remote -v | xargs)' \
+		-X 'main.GitTag=$(shell git tag --sort=version:refname | tail -n 1)' \
+		-X 'main.GitCommit=$(shell git log --pretty=oneline -n 1)' \
+		-X 'main.BuildTime=$(shell date +'%Y.%m.%d.%H%M%S')' \
+		-X 'main.GoVersion=$(shell go version)' \
+		-X 'github.com/cocktail828/gdk/v1/cmd/status.AppVersion=$(APPVER)' \
+	" -o $(OUTPUT_DIR)/$@ main.go
 
 clean:
 	@echo Cleaning...
-	rm -rf $(BIN)
+	rm -rf $(OUTPUT_DIR)

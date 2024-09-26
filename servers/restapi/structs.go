@@ -1,4 +1,4 @@
-package httpd
+package restapi
 
 type Response struct {
 	Code    int    `json:"code,omitempty"`
